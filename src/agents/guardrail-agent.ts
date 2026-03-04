@@ -11,7 +11,7 @@ const guardSchema = z.object({
   reason: z.string().describe('Brief explanation for the decision'),
   sanitizedContent: z
     .string()
-    .optional()
+    .nullish()
     .describe('Required when decision is sanitize: the text with sensitive parts replaced'),
 })
 
@@ -50,7 +50,7 @@ async function checkWithLLM(
   return {
     decision: object.decision as GuardDecision,
     notes,
-    sanitizedContent: object.sanitizedContent,
+    sanitizedContent: object.sanitizedContent ?? undefined,
   }
 }
 
