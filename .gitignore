@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.pnpm-store/
+.mastra/
+
+.env
+.env.local
+*.log
+.DS_Store
