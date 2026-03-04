@@ -28,7 +28,7 @@ Red Team Agent  vs  Guardrail Agent
 
 - **Red Team Agent** → 시스템을 깨려고 공격 생성
 - **Guardrail Agent** → 입력/출력 검사 및 방어
-- **Target Agent** → 실제 업무 수행 (Web Research Summarizer)
+- **Target Agent** → 실제 업무 수행
 
 ---
 
@@ -39,7 +39,7 @@ Red Team Agent  vs  Guardrail Agent
 | **Orchestrator** | Mastra Workflow로 전체 라운드 진행, 에이전트 호출, 결과 기록, Discord 알림 |
 | **Red Team Agent** | Target이 정책을 위반하도록 유도하는 입력 생성 (prompt_injection, data_exfiltration, hallucination_induction, content_policy_violation) |
 | **Guardrail Agent** | LLM 기반 입력/출력 검사, `block` / `sanitize` / `allow` 결정 |
-| **Target Agent** | Web Research Summarizer (일반 지식 기반 요약, MVP에서는 웹 검색 툴 없음) |
+| **Target Agent** | 일반 지식 기반 요약 |
 
 ---
 
@@ -173,11 +173,3 @@ pnpm dev
 | `EADDRINUSE: port 4112` | 이전 Studio 프로세스가 포트 점유. `lsof -i :4112` 후 `kill <PID>` |
 | `SyntaxError: Unexpected end of input` | `rm -rf .mastra/output && pnpm run studio` 로 캐시 삭제 후 재실행 |
 
----
-
-## 10. 향후 확장
-
-- **Adaptive Red Team**: 이전 라운드 실패를 학습
-- **Guardrail A/B 테스트**: guard_v1, guard_v2 성능 비교
-- **공격 통계**: attack_success_rate, false_positive_rate, guard_detection_rate
-- **Target 웹 검색**: Exa 등 검색 API 연동
