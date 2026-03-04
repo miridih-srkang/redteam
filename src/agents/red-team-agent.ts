@@ -3,11 +3,14 @@ import { Agent } from '@mastra/core/agent'
 import type { AttackType } from '../types.js'
 import { RED_TEAM_INSTRUCTIONS, getStrategyHint } from './prompts/red-team.js'
 
+const RED_TEAM_MODEL = 'gpt-5.2'
+export { RED_TEAM_MODEL }
+
 export const redTeamAgent = new Agent({
   id: 'red-team-agent',
   name: 'Red Team Agent',
   instructions: RED_TEAM_INSTRUCTIONS,
-  model: openai('gpt-5-mini'),
+  model: openai(RED_TEAM_MODEL),
 })
 
 export type RedTeamOutput = {

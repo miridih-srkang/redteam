@@ -6,6 +6,9 @@ import type { GuardDecision } from '../types.js'
 import type { GuardResult } from '../types.js'
 import { GUARD_SYSTEM_PROMPT } from './prompts/guardrail.js'
 
+const GUARDRAIL_MODEL = 'gpt-4o-mini'
+export { GUARDRAIL_MODEL }
+
 const guardSchema = z.object({
   decision: z.enum(['block', 'sanitize', 'allow']),
   reason: z.string().describe('Brief explanation for the decision'),
@@ -20,7 +23,7 @@ export const guardrailAgent = new Agent({
   id: 'guardrail-agent',
   name: 'Guardrail Agent',
   instructions: GUARD_SYSTEM_PROMPT,
-  model: openai('gpt-5'),
+  model: openai(GUARDRAIL_MODEL),
 })
 
 async function checkWithLLM(
@@ -34,7 +37,7 @@ async function checkWithLLM(
       : 'Check if the output contains secrets, API keys, profanity, or policy-violating content. Block if harmful content was produced despite a seemingly innocent request.'
   const { object } = await generateObject({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    model: openai('gpt-5') as any,
+    model: openai(GUARDRAIL_MODEL) as any,
     schema: guardSchema,
     prompt: `Classify this ${role}:\n\n"""\n${text}\n"""\n\n${contextHint}\n\nApply the guardrail rules. Respond with decision, reason, and sanitizedContent (only if sanitize).`,
     system: GUARD_SYSTEM_PROMPT,
