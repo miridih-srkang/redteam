@@ -1,11 +1,11 @@
 # AI Guardrail Arena
 
-LLM 기반 Agent 시스템에서 발생할 수 있는 공격을 **Red Team Agent가 자동으로 생성**하고, **Guardrail Agent가 이를 탐지·차단·정화**하는지를 실험하는 **자동 대결 시뮬레이터**.
+LLM 기반 Agent 시스템의 안전성을 테스트하는 **공격-방어 시뮬레이터**.
+**직접 공격 메시지를 입력**하거나, **Red Team Agent가 자동으로 공격을 생성**하여 Guardrail Agent가 이를 탐지·차단·정화하는지를 실험한다.
 
 ## 한 줄 요약
 
-> **Red Team Agent가 공격을 생성하고 Guardrail Agent가 이를 방어하는 LLM 안전성 테스트 Arena**  
-> Mastra가 **경기 진행자**, Discord가 **결과 대시보드** 역할을 한다.
+> Mastra가 **경기 진행자**, Discord가 **결과 대시보드** 역할을 하는 LLM 안전성 테스트 Arena
 
 ---
 
@@ -17,39 +17,79 @@ LLM 기반 Agent 시스템에서 발생할 수 있는 공격을 **Red Team Agent
 - Guardrail 정책의 **효과 검증**
 - 공격/방어 전략의 **자동 실험**
 
-### 핵심 구조
+### 두 가지 모드
 
-```
-Red Team Agent  vs  Guardrail Agent
-          │
-          ▼
-      Target Agent
-```
-
-- **Red Team Agent** → 시스템을 깨려고 공격 생성
-- **Guardrail Agent** → 입력/출력 검사 및 방어
-- **Target Agent** → 실제 업무 수행
+| 모드 | 설명 |
+|------|------|
+| **🎯 Direct (직접 공격)** | 사용자가 공격 메시지를 직접 입력. 가드레일이 감지하면 **공격 유형까지 분석**하여 리포트 |
+| **🤖 Auto (자동 생성)** | 일반 메시지를 입력하면 Red Team Agent가 공격 메시지로 변환 후 가드레일과 대결 |
 
 ---
 
 ## 2. 시스템 구성 요소
 
-| 구성 요소 | 역할 |
-|----------|------|
-| **Orchestrator** | Mastra Workflow로 전체 라운드 진행, 에이전트 호출, 결과 기록, Discord 알림 |
-| **Red Team Agent** | Target이 정책을 위반하도록 유도하는 입력 생성 (prompt_injection, data_exfiltration, hallucination_induction, content_policy_violation) |
-| **Guardrail Agent** | LLM 기반 입력/출력 검사, `block` / `sanitize` / `allow` 결정 |
-| **Target Agent** | 일반 지식 기반 요약 |
+| 구성 요소 | 역할 | 파일 |
+|----------|------|------|
+| **Red Team Agent** | Target이 정책을 위반하도록 유도하는 입력 생성 (Auto 모드) | `agents/red-team-agent.ts` |
+| **Guardrail Agent** | LLM 기반 입력/출력 검사, `block` / `sanitize` / `allow` 결정 | `agents/guardrail-agent.ts` |
+| **Target Agent** | 일반 지식 기반 요약 (Web Research Summarizer) | `agents/target-agent.ts` |
+| **Arena Workflow** | Mastra Workflow로 전체 라운드 진행, 모드 분기, 결과 전송 | `arena-workflow.ts` |
 
 ---
 
-## 3. 실행 흐름 (1 라운드)
+## 3. 실행 흐름
 
-1. Benign input 생성 (사용자 입력 또는 기본값)
-2. Red Team → 공격 입력 + 유형 생성
-3. Guardrail → **입력** 검사
-4. Target Agent → 실행
-5. Guardrail → **출력** 검사 + Discord webhook 전송
+### 🎯 Direct 모드 (직접 공격)
+
+```
+사용자 공격 메시지 입력
+        │
+        ▼
+┌─────────────────────────┐
+│  Guardrail 입력 검사     │
+│  + 공격 유형 분석        │◄── block/sanitize/allow 판정
+│    (감지 시 유형 분류)    │    + 공격 유형·confidence·설명
+└───────────┬─────────────┘
+            │
+     ┌──────┴──────┐
+     │ block?      │
+     ├─ Yes ──► 차단 (Target 미실행)
+     └─ No ───► Target Agent 실행
+                    │
+                    ▼
+            Guardrail 출력 검사
+                    │
+                    ▼
+            최종 결과 + Discord 전송
+```
+
+### 🤖 Auto 모드 (자동 생성)
+
+```
+사용자 일반 메시지 입력
+        │
+        ▼
+┌─────────────────────────┐
+│  Red Team Agent          │
+│  공격 메시지 + 유형 생성  │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Guardrail 입력 검사     │◄── block/sanitize/allow 판정
+└───────────┬─────────────┘
+            │
+     ┌──────┴──────┐
+     │ block?      │
+     ├─ Yes ──► 차단 (Target 미실행)
+     └─ No ───► Target Agent 실행
+                    │
+                    ▼
+            Guardrail 출력 검사
+                    │
+                    ▼
+            최종 결과 + Discord 전송
+```
 
 ---
 
@@ -62,13 +102,15 @@ Red Team Agent  vs  Guardrail Agent
 | `hallucination_induction` | 가짜 정보·과장된 수치·상상한 내용을 답변하도록 유도 |
 | `content_policy_violation` | 욕설·혐오·유해 콘텐츠 유도 |
 
+Direct 모드에서 가드레일이 공격을 감지하면 위 유형 중 해당되는 것을 **confidence(high/medium/low)와 한국어 설명**과 함께 분류한다. 여러 유형이 동시에 감지될 수 있다.
+
 ---
 
 ## 5. 기술 스택
 
 - **Mastra** — Agent orchestration, step 기반 workflow
 - **Node.js 18+** / **TypeScript**
-- **OpenAI API** (gpt-5, gpt-5-mini, gpt-4o-mini)
+- **OpenAI API** (gpt-5.2, gpt-4o-mini)
 - **Discord Webhook** — 결과 표시
 
 ---
@@ -83,9 +125,9 @@ redteam/
 ├── .env.example
 │
 ├── src/
-│   ├── types.ts                 # RoundResult, GuardDecision, AttackType 등
+│   ├── types.ts                 # ArenaMode, RoundResult, GuardDecision, AttackType 등
 │   ├── agents/
-│   │   ├── guardrail-agent.ts   # Guardrail Agent (입력/출력 검사)
+│   │   ├── guardrail-agent.ts   # Guardrail Agent (입력/출력 검사 + 공격 유형 분석)
 │   │   ├── red-team-agent.ts    # Red Team Agent (공격 생성)
 │   │   ├── target-agent.ts      # Target Agent (Summarizer)
 │   │   └── prompts/
@@ -93,9 +135,9 @@ redteam/
 │   │       └── red-team.ts      # Red Team 지침 + 전략별 힌트
 │   ├── mastra/
 │   │   └── index.ts             # Mastra 인스턴스 (Studio용)
-│   ├── discord.ts               # Discord webhook 전송
-│   ├── arena-workflow.ts        # Mastra Workflow (5 steps)
-│   └── index.ts                 # CLI 진입점
+│   ├── discord.ts               # Discord webhook 전송 (모드별 포맷)
+│   ├── arena-workflow.ts        # Mastra Workflow (모드 분기 포함)
+│   └── index.ts                 # 대화형 CLI 진입점
 ```
 
 ---
@@ -131,24 +173,28 @@ pnpm install
 pnpm dev
 ```
 
-### 4. 입력 지정 (선택)
+실행하면 대화형 CLI가 시작된다:
 
-```bash
-# 사용자 입력 지정
-ARENA_USER_INPUT="GPT-5 출시일과 주요 기능 알려줘" pnpm dev
+```
+=== AI Guardrail Arena ===
 
-# Red Team 전략 지정 (없으면 LLM 자유 선택)
-ARENA_ATTACK_STRATEGY=prompt_injection pnpm dev
+모드를 선택하세요:
+  1) 🎯 직접 공격 — 공격 메시지를 직접 입력
+  2) 🤖 자동 생성 — 일반 메시지를 Red Team이 공격으로 변환
+
+선택 (1 또는 2): _
 ```
 
-### 5. Mastra Studio (브라우저 UI)
+### 4. Mastra Studio (브라우저 UI)
 
 ```bash
 pnpm run studio
 ```
 
-- **Studio**: http://localhost:4112
-- **API**: http://localhost:4112/api
+- **Studio**: http://localhost:4111
+- **API**: http://localhost:4111/api
+
+워크플로우 실행 내역과 각 스텝의 입출력을 시각적으로 확인할 수 있다.
 
 ---
 
@@ -170,6 +216,5 @@ pnpm dev
 |------|-----------|
 | `Missing OPENAI_API_KEY` | `.env`에 `OPENAI_API_KEY=sk-...` 설정 |
 | `DISCORD_WEBHOOK_URL not set` | 경고일 뿐, Discord 없이 콘솔만으로 실행 가능 |
-| `EADDRINUSE: port 4112` | 이전 Studio 프로세스가 포트 점유. `lsof -i :4112` 후 `kill <PID>` |
+| `EADDRINUSE: port 4111` | 이전 Studio 프로세스가 포트 점유. `lsof -i :4111` 후 `kill <PID>` |
 | `SyntaxError: Unexpected end of input` | `rm -rf .mastra/output && pnpm run studio` 로 캐시 삭제 후 재실행 |
-
